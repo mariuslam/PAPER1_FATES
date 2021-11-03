@@ -378,22 +378,6 @@ contains
     write(fates_log(),*) 'check how the class pointer was setup'
     call endrun(msg=errMsg(sourcefile, __LINE__))
   end function dftcdpsi_from_psi_base
-
-
-  ! =====================================================================================
-  ! Set the hardening variable in wrf module per cohhort !marius
-  ! This will vary in time! , but not with Vg/CH water retention function.  
-  ! =====================================================================================
-
-  subroutine set_wrf_cohort_hardening(this,params_in)
-
-  class(wrf_type_tfs) :: this
-  real(r8), intent(in) :: params_in(:)
-
-  this%hard_rate    = params_in(1)
-
-  return
-  end subroutine set_wrf_cohort_hardening
   
   ! =====================================================================================
   ! Van Genuchten Functions are defined here
@@ -845,6 +829,23 @@ contains
   end subroutine set_wrf_param_tfs
 
   ! =====================================================================================
+  ! Set the hardening changed variables in wrf !marius
+
+  subroutine set_wrf_cohort_hardening(this,params_in)
+
+    class(wrf_type_tfs) :: this
+    real(r8), intent(in) :: params_in(:)
+
+    this%pinot    = params_in(1)
+    !this%th_res   = params_in(2)
+    this%epsil    = params_in(2)
+    !write(fates_log(),*)'check1', this%pinot, this%epsil
+
+    call this%set_min_max(this%th_res,this%th_sat)
+
+    return
+  end subroutine set_wrf_cohort_hardening
+  ! =====================================================================================
 
   function get_thsat_tfs(this) result(th_sat)
       class(wrf_type_tfs)   :: this
@@ -920,7 +921,7 @@ contains
     real(r8) :: psi_cavitation ! press from cavitation
     real(r8) :: b,c            ! quadratic smoothing terms
     real(r8) :: satfrac        ! saturated fraction (between res and sat)
-    
+
     satfrac = (th-this%th_res)/(this%th_sat-this%th_res)
 
     if(th>this%th_max)then
@@ -969,6 +970,8 @@ contains
        c = psi_capelast*psi_cavitation
        
        psi = (-b + sqrt(b*b - 4._r8*quad_a2*c))/(2._r8*quad_a2)
+
+       !write(fates_log(),*)'check2', this%pinot, this%epsil !marius
     end if
  
     return
@@ -1294,7 +1297,7 @@ contains
 
     !----------------------------------------------------------------------
     real(r8),parameter :: xtol = 1.e-16_r8     ! error tolerance for th          [m3 m-3]
-    real(r8),parameter :: ytol = 1.e-8_r8      ! error tolerance for psi         [MPa]
+    real(r8),parameter :: ytol = 1.e-8_r8      ! error tolerance for psi         [MPa] marius -8
 
     if(psi  > 0.0_r8) then
         write(fates_log(),*)'Error: psi become positive during pv bisection'
@@ -1310,7 +1313,7 @@ contains
     chg   = upper - lower
 
     nitr = 0
-    do while(abs(chg) .gt. xtol .and. nitr < 100)
+    do while(abs(chg) .gt. xtol .and. nitr < 100)  !marius 1000 instead of 100
        x_new = 0.5_r8*(lower + upper)
        y_new = this%psi_from_th(x_new)
        f_new = y_new - psi
@@ -1321,9 +1324,10 @@ contains
        if((f_hi * f_new) .lt. 0._r8) lower = x_new
        chg = upper - lower
        nitr = nitr + 1
+       !write(fates_log(),*)'check2: psi',y_new,'th',x_new marius
     end do
 
-    if(nitr .eq. 100)then
+    if(nitr .eq. 100)then  !marius 1000 instead of 100
         write(fates_log(),*)'Warning: number of iteraction reaches 100 for bisect_pv'
     endif
 

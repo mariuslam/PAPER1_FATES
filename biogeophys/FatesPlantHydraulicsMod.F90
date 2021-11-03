@@ -42,6 +42,7 @@ module FatesPlantHydraulicsMod
   use FatesConstantsMod, only : cm3_per_m3
   use FatesConstantsMod, only : kg_per_g
   use FatesConstantsMod, only : fates_unset_r8
+  use FatesConstantsMod, only : tfrz => t_water_freeze_k_1atm !marius
 
   use EDParamsMod       , only : hydr_kmax_rsurf1
   use EDParamsMod       , only : hydr_kmax_rsurf2
@@ -2281,7 +2282,9 @@ contains
     real(r8) :: sumcheck            ! used to debug mass balance in soil horizon diagnostics
     integer  :: nlevrhiz            ! local for number of rhizosphere levels
     integer  :: sc                  ! size class index
-    
+    real(r8) :: pinot_hard          ! marius
+    real(r8) :: epsil_hard          ! marius
+    real(r8) :: res_hard          ! marius
     ! ----------------------------------------------------------------------------------
     ! Important note: We are interested in calculating the total fluxes in and out of the
     ! site/column.  Usually, when we do things like this, we acknowledge that FATES
@@ -2368,11 +2371,18 @@ contains
              ft       = ccohort%pft
 
              !update hardening for each cohort in BC hydraulics loop. Marius
-             if (hlm_use_hardening .eq. itrue) then
-                do pm = 1,n_hypool_plant
-                   call wrf_plant(pm,ft)%p%set_wrf_hard([ccohort%hard_rate])
-                end do 
-             end if
+             !if (hlm_use_hardening .eq. itrue) then
+             !   if (ccohort%hard_level .ne. ccohort%hard_level_prev) then
+             !      write(fates_log(),*)'check1', ccohort%hard_rate
+             !       do pm = 1,n_hypool_plant
+             !         pinot_hard=EDPftvarcon_inst%hydr_pinot_node(ft,pm)-(1._r8-ccohort%hard_rate)*0.7_r8
+	     !         epsil_hard=EDPftvarcon_inst%hydr_epsil_node(ft,pm)+(1._r8-ccohort%hard_rate)*10._r8
+             !         call wrf_plant(pm,ft)%p%set_wrf_hard([pinot_hard,epsil_hard])
+             !      end do 
+             !   end if
+             !   ccohort%hard_level_prev=ccohort%hard_level
+             !end if
+
              ! Relative transpiration of this cohort from the whole patch
              ! Note that g_sb_laweight / gscan_patch is the weighting that gives cohort contribution per area
              ! [mm H2O/plant/s]  = [mm H2O/ m2 / s] * [m2 / patch] * [cohort/plant] * [patch/cohort]
@@ -4407,7 +4417,7 @@ contains
     !
     ! The flux at t+1, is simply the current flux (q) and a first order Taylor
     ! expanion (i.e. forward-euler) estimate with the current derivative based
-    ! on the current value of theta and psi.
+    ! on the current value of theta and psi.Fns
     ! Note also, that the solution is in terms of the matric potential, psi.  This
     ! conversion from theta to psi, requires this derivative (Jacobian) to also
     ! contain not just the rate of change of flux wrt psi, but the change in theta
@@ -4495,7 +4505,7 @@ contains
     ! This is a convergence test.  This is the maximum difference
     ! allowed between the flux balance and the change in storage
     ! on a node. [kg/s] *Note, 1.e-9 = 1 ug/s
-    real(r8), parameter :: max_allowed_residual = 1.e-8_r8
+    real(r8), parameter :: max_allowed_residual = 1.e-8_r8 
 
     ! Maximum number of times we re-try a round of Newton
     ! iterations, each time decreasing the time-step and
@@ -4510,7 +4520,7 @@ contains
 
 
     ! Maximum number of Newton iterations in each round
-    integer, parameter :: max_newton_iter = 1000 !marius
+    integer, parameter :: max_newton_iter = 10000 !marius
 
     ! Flag definitions for convergence flag (icnv)
     ! icnv = 1 fail the round due to either wacky math, or
@@ -4677,7 +4687,7 @@ contains
           tm = tm + dtime
           ! If we have not exceeded our max number
           ! of retrying rounds of Newton iterations, reduce
-          ! time and try a new round
+          ! time and try a new roundF
           
           if( nsteps > max_newton_rounds ) then
               
@@ -4727,6 +4737,7 @@ contains
                  else
                      
                      psi_node(k) = wrf_plant(pm_node(k),ft)%p%psi_from_th(th_node(k))
+           
                      ! Get total potential [Mpa]
                      h_node(k) =  mpa_per_pa*denh2o*grav_earth*z_node(k) + psi_node(k)
                      ! Get Fraction of Total Conductivity [-]
@@ -4753,7 +4764,7 @@ contains
              ! of each connection.  This IS dependant on total potential h_node
              ! because of the root-soil radial conductance.
 
-             call SetMaxCondConnections(site_hydr, cohort_hydr, h_node, kmax_dn, kmax_up, cohort%hard_rate)
+             call SetMaxCondConnections(site_hydr, cohort_hydr, h_node, kmax_dn, kmax_up, cohort%hard_rate, cohort%hard_level, bc_in)
                 
              ! calculate boundary fluxes     
              do icnx=1,site_hydr%num_connections
@@ -5017,7 +5028,6 @@ contains
                            (1.0-rlfx_plnt0)*real(nwtn_iter,r8)/real(max_newton_iter-3,r8))
                      rlfx_soil = min(1._r8,rlfx_soil0 + & 
                            (1.0-rlfx_soil0)*real(nwtn_iter,r8)/real(max_newton_iter-3,r8))
-
                  end if
              end if
 
@@ -5147,7 +5157,7 @@ contains
   
   ! =====================================================================================
   
-  subroutine SetMaxCondConnections(site_hydr, cohort_hydr, h_node, kmax_dn, kmax_up, hard_rate)
+  subroutine SetMaxCondConnections(site_hydr, cohort_hydr, h_node, kmax_dn, kmax_up, hard_rate ,hard_level, bc_in)
     
     ! -------------------------------------------------------------------------------
     ! This subroutine sets the maximum conductances
@@ -5158,14 +5168,16 @@ contains
     ! dependent on the updating potential in the system, and not just a function
     ! of plant geometry and material properties.
     ! -------------------------------------------------------------------------------
-
+    type(bc_in_type),intent(in) :: bc_in
     type(ed_site_hydr_type), intent(in),target   :: site_hydr
     type(ed_cohort_hydr_type), intent(in),target :: cohort_hydr
     real(r8),intent(in)  :: h_node(:)        ! Total (matric+height) potential at each node (Mpa)
     real(r8),intent(out) :: kmax_dn(:)       ! Max conductance of downstream sides of connections (kg s-1 MPa-1)
     real(r8),intent(out) :: kmax_up(:)       ! Max conductance of upstream sides of connections   (kg s-1 MPa-1)
     real(r8),intent(in)  :: hard_rate  !marius
-
+    real(r8),intent(in)  :: hard_level  !marius
+    real(r8):: hard_rate_temporary
+    real(r8):: soil_rate_temporary
     real(r8):: aroot_frac_plant ! Fraction of the cohort's fine-roots
                                 ! out of the total in the current layer
     integer :: icnx  ! connection index
@@ -5209,11 +5221,21 @@ contains
           if( k == 1 ) then !troot-aroot
              kmax_dn(icnx) = cohort_hydr%kmax_troot_lower(j) 
              kmax_up(icnx) = cohort_hydr%kmax_aroot_upper(j)
+            !-----------------------------------------------------------
+             if (hlm_use_hardening .eq. itrue) then
+               if (hard_rate<0.99_r8 .and. hard_level>-74._r8) then
+                 hard_rate_temporary=((hard_level+2._r8)/14._r8)
+                 kmax_dn(icnx)=kmax_dn(icnx)*10**hard_rate_temporary !marius
+                 kmax_up(icnx)=kmax_up(icnx)*10**hard_rate_temporary 
+               !else if (hard_level<=-74._r8) then 
+               !  kmax_dn(icnx)=kmax_dn(icnx)*10*(10**(-7)) !-10
+               !  kmax_up(icnx)=kmax_up(icnx)*10*(10**(-7)) 
+               end if
+            endif
+            !--------------------------------------------------------
           elseif( k == 2) then ! aroot-soil
-
              ! Special case. Maximum conductance depends on the 
              ! potential gradient.
-
              if(h_node(inode) < h_node(inode+1) ) then
                 kmax_dn(icnx) = 1._r8/(1._r8/cohort_hydr%kmax_aroot_lower(j) + & 
                      1._r8/cohort_hydr%kmax_aroot_radial_in(j))
@@ -5222,16 +5244,27 @@ contains
                      1._r8/cohort_hydr%kmax_aroot_radial_out(j))
              end if
              kmax_up(icnx) = site_hydr%kmax_upper_shell(j,1)*aroot_frac_plant
-             !if (hlm_use_hardening .eq. itrue .and. hard_rate<0.98_r8) then
-             !   kmax_dn(icnx)=kmax_dn(icnx)*hard_rate !marius
-             !   kmax_up(icnx)=kmax_up(icnx)*hard_rate !marius
-             !endif
+             !-----------------------------------------------
+             if (hlm_use_hardening .eq. itrue) then
+                if (hard_rate<0.99_r8 .and. hard_level>-74._r8) then
+                  hard_rate_temporary=((hard_level+2._r8)/14._r8)-1._r8 
+                  kmax_dn(icnx)=kmax_dn(icnx)*10**hard_rate_temporary !marius
+                !else if (hard_level<=-74._r8) then
+                !  kmax_dn(icnx)=kmax_dn(icnx)*10*(10**(-7)) !-10
+                end if
+                if ((bc_in%t_soisno_sl(j)-tfrz)<-5._r8 .and. (bc_in%t_soisno_sl(j)-tfrz)>-25._r8) then 
+                  soil_rate_temporary=(((bc_in%t_soisno_sl(j)-tfrz+5._r8)/20._r8)*3_r8) !20 before
+                  kmax_up(icnx)=kmax_up(icnx)*10**soil_rate_temporary
+                else if ((bc_in%t_soisno_sl(j)-tfrz)<=-25._r8) then !-20 before
+                  kmax_up(icnx)=kmax_up(icnx)*(10**(-3)) !same as before
+                end if
+             endif
+             !---------------------------------------------------
           else                 ! soil - soil
              kmax_dn(icnx) = site_hydr%kmax_lower_shell(j,k-2)*aroot_frac_plant
              kmax_up(icnx) = site_hydr%kmax_upper_shell(j,k-1)*aroot_frac_plant
           endif
        enddo
-
     end do
 
 
@@ -5301,9 +5334,6 @@ contains
            do pm = 1,n_plant_media
               allocate(wrf_tfs)
               wrf_plant(pm,ft)%p => wrf_tfs
-              !initialize hardening value in wrf once case is selected.  
-              call wrf_tfs%set_wrf_hard([1.0_r8]) ! cold start has no hardening. marius
-
               if (pm.eq.leaf_p_media) then   ! Leaf tissue
                  cap_slp    = 0.0_r8
                  cap_int    = 0.0_r8

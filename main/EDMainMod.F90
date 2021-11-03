@@ -372,8 +372,8 @@ contains
           call Mortality_Derivative( currentSite, currentCohort, bc_in, frac_site_primary )
 
           if (hlm_use_hardening.eq.itrue) then
-	      call Hardening_scheme( currentSite, currentPatch, currentCohort, bc_in ) !hard_level and hard_GRF will be updated, ED_ecosystem_dynamics is called once a day at beginning of day Marius
-              write(fates_log(),*) 'CHECK EDmainMod' !marius
+	      call Hardening_scheme( currentSite, currentPatch, currentCohort, bc_in) !hard_level and hard_GRF will be updated, ED_ecosystem_dynamics is called once a day at beginning of day Marius
+              !write(fates_log(),*) 'CHECK EDmainMod',currentCohort%hard_rate !marius
           endif
           ! -----------------------------------------------------------------------------
           ! Apply Plant Allocation and Reactive Transport

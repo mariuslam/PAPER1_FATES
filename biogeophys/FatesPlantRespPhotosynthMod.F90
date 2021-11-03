@@ -256,7 +256,6 @@ contains
          woody     => prt_params%woody,   &  ! Is vegetation woody or not? 
          stomatal_intercept   => EDPftvarcon_inst%stomatal_intercept ) !Unstressed minimum stomatal conductance
 
-
       do s = 1,nsites
 
          ! Multi-layer parameters scaled by leaf nitrogen profile.
@@ -400,6 +399,9 @@ contains
                                  (hlm_parteh_mode .ne. prt_carbon_allom_hyp )   ) then
                                  
                               if (hlm_use_planthydro.eq.itrue ) then
+                                 if (hlm_use_hardening.eq.itrue .and. currentCohort%hard_rate < 0.98_r8) then !marius
+                                   stomatal_intercept(ft) = stomatal_intercept(ft)*(currentCohort%hard_rate*0.5+0.5)
+                                 end if
                                  stomatal_intercept_btran = max( cf/rsmax0,stomatal_intercept(ft)*currentCohort%co_hydr%btran )
                                  
                                  btran_eff = currentCohort%co_hydr%btran 
@@ -982,7 +984,10 @@ contains
    associate( bb_slope  => EDPftvarcon_inst%bb_slope      ,& ! slope of BB relationship, unitless
       medlyn_slope=> EDPftvarcon_inst%medlyn_slope          , & ! Slope for Medlyn stomatal conductance model method, the unit is KPa^0.5
       stomatal_intercept=> EDPftvarcon_inst%stomatal_intercept )  !Unstressed minimum stomatal conductance, the unit is umol/m**2/s
-
+      if (hlm_use_hardening.eq.itrue .and. hard_rate < 0.98_r8) then !marius
+        stomatal_intercept(ft) = stomatal_intercept(ft)*(hard_rate*0.5+0.5)
+      end if
+                                 
      ! photosynthetic pathway: 0. = c4, 1. = c3
      c3c4_path_index = nint(EDPftvarcon_inst%c3psn(ft))
      
