@@ -83,7 +83,7 @@ module EDMainMod
   use EDMortalityFunctionsMod  , only : Mortality_Derivative
   use EDTypesMod               , only : AREA_INV
   use EDMortalityFunctionsMod  , only : Hardening_scheme !Marius
-
+  use EDParamsMod                , only : ED_val_phen_a, ED_val_phen_b, ED_val_phen_c !marius just to print
   use PRTGenericMod,          only : carbon12_element
   use PRTGenericMod,          only : all_carbon_elements
   use PRTGenericMod,          only : leaf_organ
@@ -340,8 +340,9 @@ contains
        currentSite%gdd5= currentSite%gdd5 + max(0.0_r8,bc_in%t_ref2m_24_si-273.15_r8-5.0_r8)
     end if
 
+    write(fates_log(),*) 'Tmean5yr:',bc_in%t_mean_5yr_si-273.15_r8,'Tmin1yrinst:',bc_in%t_min_yr_inst_si-273.15_r8,'tmean',bc_in%t_ref2m_24_si-273.15_r8
+    write(fates_log(),*) 'grow deg day',currentSite%grow_deg_days,'tresh',ED_val_phen_a + ED_val_phen_b*exp(ED_val_phen_c*real(currentSite%nchilldays,r8))
     currentPatch => currentSite%youngest_patch
-
     do while(associated(currentPatch))
 
        currentPatch%age = currentPatch%age + hlm_freq_day

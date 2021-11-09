@@ -399,8 +399,8 @@ contains
                                  (hlm_parteh_mode .ne. prt_carbon_allom_hyp )   ) then
                                  
                               if (hlm_use_planthydro.eq.itrue ) then
-                                 if (hlm_use_hardening.eq.itrue .and. currentCohort%hard_rate < 0.98_r8) then !marius
-                                   stomatal_intercept(ft) = stomatal_intercept(ft)*(currentCohort%hard_rate*0.5+0.5)
+                                 if (hlm_use_hardening.eq.itrue .and. currentCohort%hard_level < -3._r8) then !marius 
+                                   stomatal_intercept(ft) = stomatal_intercept(ft)*(((currentCohort%hard_level+70._r8)/67._r8)*0.5+0.5)
                                  end if
                                  stomatal_intercept_btran = max( cf/rsmax0,stomatal_intercept(ft)*currentCohort%co_hydr%btran )
                                  
@@ -517,7 +517,7 @@ contains
                               ! Part IX: This call calculates the actual photosynthesis for the 
                               ! leaf layer, as well as the stomatal resistance and the net assimilated carbon.
 
-                              call LeafLayerPhotosynthesis(currentCohort%hard_rate,         &  ! in marius
+                              call LeafLayerPhotosynthesis(currentCohort%hard_level,        &  ! in marius
                                                         currentPatch%f_sun(cl,ft,iv),       &  ! in
                                                         currentPatch%ed_parsun_z(cl,ft,iv), &  ! in
                                                         currentPatch%ed_parsha_z(cl,ft,iv), &  ! in
@@ -834,7 +834,7 @@ contains
   
   ! =======================================================================================
   
-  subroutine LeafLayerPhotosynthesis(hard_rate,         &  ! in marius
+  subroutine LeafLayerPhotosynthesis(hard_level,        &  ! in marius
                                      f_sun_lsl,         &  ! in
                                      parsun_lsl,        &  ! in
                                      parsha_lsl,        &  ! in
@@ -951,7 +951,7 @@ contains
    real(r8) :: init_co2_inter_c  ! First guess intercellular co2 specific to C path
    real(r8) :: term                 ! intermediate variable in Medlyn stomatal conductance model
    real(r8) :: vpd                  ! water vapor deficit in Medlyn stomatal model (KPa)
-   real(r8) :: hard_rate !marius
+   real(r8) :: hard_level !marius
 
    ! Parameters
    ! ------------------------------------------------------------------------
@@ -984,8 +984,8 @@ contains
    associate( bb_slope  => EDPftvarcon_inst%bb_slope      ,& ! slope of BB relationship, unitless
       medlyn_slope=> EDPftvarcon_inst%medlyn_slope          , & ! Slope for Medlyn stomatal conductance model method, the unit is KPa^0.5
       stomatal_intercept=> EDPftvarcon_inst%stomatal_intercept )  !Unstressed minimum stomatal conductance, the unit is umol/m**2/s
-      if (hlm_use_hardening.eq.itrue .and. hard_rate < 0.98_r8) then !marius
-        stomatal_intercept(ft) = stomatal_intercept(ft)*(hard_rate*0.5+0.5)
+      if (hlm_use_hardening.eq.itrue .and. hard_level < -3._r8) then !marius
+        stomatal_intercept(ft) = stomatal_intercept(ft)*(((hard_level+70._r8)/67._r8)*0.5+0.5)
       end if
                                  
      ! photosynthetic pathway: 0. = c4, 1. = c3
