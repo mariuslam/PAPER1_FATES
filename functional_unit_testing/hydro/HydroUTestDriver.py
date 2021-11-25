@@ -223,7 +223,11 @@ def main(argv):
 #    vg_wrf(1,alpha=1.0,psd=2.7,th_sat=0.55,th_res=0.1)
 #    vg_wkf(1,alpha=1.0,psd=2.7,th_sat=0.55,th_res=0.1,tort=0.5)
 
+    #cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=2)
+    #cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=4)
     cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=6)
+    #cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=8)
+
     cch_wkf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=6)
 
 #    cch_wrf(3,th_sat=0.55, psi_sat=-1.56e-3, beta=6)
@@ -244,16 +248,16 @@ def main(argv):
             cap_int=cap_int[3],cap_slp=cap_slp[3],pmedia=4,hard_rate=hard_rate[0]) # mar
     tfs_wkf(2,p50=-2.25, avuln=2.0)
 
-    # Stem
+    #Stem
     tfs_wrf(3,th_sat=theta_sat[2],th_res=theta_res[2],pinot=-1.22807+pi, \
             epsil=10+ep,rwc_fd=rwc_fd[2],cap_corr=cap_corr[2], \
-            cap_int=cap_int[2],cap_slp=cap_slp[2],pmedia=2,hard_rate=hard_rate[0]) # mar
+           cap_int=cap_int[2],cap_slp=cap_slp[2],pmedia=2,hard_rate=hard_rate[0]) # mar
     tfs_wkf(3,p50=-2.25, avuln=4.0)
     
     # Leaf
 
     tfs_wrf(4,th_sat=theta_sat[3],th_res=theta_res[3],pinot=-1.465984+pi, \
-            epsil=12+ep,rwc_fd=rwc_fd[0],cap_corr=cap_corr[0], \
+           epsil=12+ep,rwc_fd=rwc_fd[0],cap_corr=cap_corr[0], \
             cap_int=cap_int[0],cap_slp=cap_slp[0],pmedia=1,hard_rate=hard_rate[0]) # mar
     tfs_wkf(4,p50=-2.25, avuln=2.0)
 
@@ -284,7 +288,7 @@ def main(argv):
     ax1.set_ylabel('Psi [MPa]')
     ax1.set_xlabel('VWC [m3/m3]')
     ax1.legend(loc='lower right')
-    plt.savefig('pv_sensitivity/0_theta_psi.png',dpi=200,bbox_inches='tight')
+    plt.savefig('pv_sensitivity/0_soil.png',dpi=200,bbox_inches='tight')
     
     for ic in range(ncomp):
         for i in range(npts):

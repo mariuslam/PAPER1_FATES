@@ -49,7 +49,9 @@ module FATESPlantRespPhotosynthMod
    use EDParamsMod,       only : ED_val_base_mr_20, stomatal_model
    use PRTParametersMod,  only : prt_params
    use FatesInterfaceTypesMod  , only : hlm_use_hardening !marius
-
+   use FatesInterfaceTypesMod     , only : hlm_model_day !marius
+   use PRTParametersMod           , only : prt_params !marius
+   use EDTypesMod                 , only : leaves_on !marius
    ! CIME Globals
    use shr_log_mod , only      : errMsg => shr_log_errMsg
 
@@ -399,8 +401,13 @@ contains
                                  (hlm_parteh_mode .ne. prt_carbon_allom_hyp )   ) then
                                  
                               if (hlm_use_planthydro.eq.itrue ) then
-                                 if (hlm_use_hardening.eq.itrue .and. currentCohort%hard_level < -3._r8) then !marius 
-                                   stomatal_intercept(ft) = stomatal_intercept(ft)*(((currentCohort%hard_level+70._r8)/67._r8)*0.5+0.5)
+                              
+                                 if (hlm_use_hardening.eq.itrue .and. currentCohort%hard_level < -3._r8 ) then !marius
+                                   if (prt_params%season_decid(ft) == itrue .and. currentCohort%status_coh == leaves_on .and. &
+                                      (nint(hlm_model_day) >= sites(s)%cleafondate .or. nint(hlm_model_day) >= sites(s)%dleafondate)) then         
+                                   else
+                                     stomatal_intercept(ft) = stomatal_intercept(ft)*(((currentCohort%hard_level+70._r8)/67._r8)*0.5+0.5)
+                                   end if
                                  end if
                                  stomatal_intercept_btran = max( cf/rsmax0,stomatal_intercept(ft)*currentCohort%co_hydr%btran )
                                  
@@ -518,6 +525,10 @@ contains
                               ! leaf layer, as well as the stomatal resistance and the net assimilated carbon.
 
                               call LeafLayerPhotosynthesis(currentCohort%hard_level,        &  ! in marius
+                                                        currentCohort%hard_level_prev,      &  ! in marius
+                                                        currentCohort%status_coh,           &
+                                                        sites(s)%cleafondate,               &
+                                                        sites(s)%dleafondate,               &
                                                         currentPatch%f_sun(cl,ft,iv),       &  ! in
                                                         currentPatch%ed_parsun_z(cl,ft,iv), &  ! in
                                                         currentPatch%ed_parsha_z(cl,ft,iv), &  ! in
@@ -835,6 +846,10 @@ contains
   ! =======================================================================================
   
   subroutine LeafLayerPhotosynthesis(hard_level,        &  ! in marius
+                                     hard_level_prev,   &  ! in marius
+                                     status_coh,        &
+                                     cleafondate,       &
+                                     dleafondate,       &
                                      f_sun_lsl,         &  ! in
                                      parsun_lsl,        &  ! in
                                      parsha_lsl,        &  ! in
@@ -952,7 +967,10 @@ contains
    real(r8) :: term                 ! intermediate variable in Medlyn stomatal conductance model
    real(r8) :: vpd                  ! water vapor deficit in Medlyn stomatal model (KPa)
    real(r8) :: hard_level !marius
-
+   real(r8) :: hard_level_prev !marius
+   integer  :: status_coh
+   integer  :: dleafondate
+   integer  :: cleafondate
    ! Parameters
    ! ------------------------------------------------------------------------
    ! Fraction of light absorbed by non-photosynthetic pigments
@@ -984,8 +1002,12 @@ contains
    associate( bb_slope  => EDPftvarcon_inst%bb_slope      ,& ! slope of BB relationship, unitless
       medlyn_slope=> EDPftvarcon_inst%medlyn_slope          , & ! Slope for Medlyn stomatal conductance model method, the unit is KPa^0.5
       stomatal_intercept=> EDPftvarcon_inst%stomatal_intercept )  !Unstressed minimum stomatal conductance, the unit is umol/m**2/s
-      if (hlm_use_hardening.eq.itrue .and. hard_level < -3._r8) then !marius
-        stomatal_intercept(ft) = stomatal_intercept(ft)*(((hard_level+70._r8)/67._r8)*0.5+0.5)
+      if (hlm_use_hardening.eq.itrue .and. hard_level < -3._r8 ) then !marius
+        if (prt_params%season_decid(ft) == itrue .and. status_coh == leaves_on .and. &
+          (nint(hlm_model_day) >= cleafondate .or. nint(hlm_model_day) >= dleafondate)) then         
+        else
+          stomatal_intercept(ft) = stomatal_intercept(ft)*(((hard_level+70._r8)/67._r8)*0.5+0.5)
+        end if
       end if
                                  
      ! photosynthetic pathway: 0. = c4, 1. = c3

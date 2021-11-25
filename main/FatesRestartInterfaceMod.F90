@@ -37,6 +37,7 @@ module FatesRestartInterfaceMod
   use FatesLitterMod,          only : ndcmpy
   use PRTGenericMod,           only : prt_global
   use PRTGenericMod,           only : num_elements
+  use FatesInterfaceTypesMod  , only : hlm_use_hardening !marius
 
 
   ! CIME GLOBALS
@@ -151,6 +152,8 @@ module FatesRestartInterfaceMod
   integer :: ir_seed_litt
   integer :: ir_seedgerm_litt
   integer :: ir_seed_prod_co
+  integer :: ir_hard_level_co !marius
+  integer :: ir_hard_level_prev_co !marius
   integer :: ir_livegrass_pa
   integer :: ir_age_pa
   integer :: ir_area_pa
@@ -662,6 +665,14 @@ contains
          long_name='fates cohort - seed production', units='kgC/plant', flushval = flushinvalid, &
          hlms='CLM:ALM', initialize=initialize_variables, ivar=ivar, index = ir_seed_prod_co )
 
+    if  (hlm_use_hardening .eq. itrue) then !marius
+       call this%set_restart_var(vname='fates_hard_level', vtype=cohort_r8, &
+            long_name='hard_level', units='DegC', flushval = flushinvalid, &
+            hlms='CLM:ALM', initialize=initialize_variables, ivar=ivar, index = ir_hard_level_co )
+       call this%set_restart_var(vname='fates_hard_level_prev', vtype=cohort_r8, &
+            long_name='hard_level', units='DegC', flushval = flushinvalid, &
+            hlms='CLM:ALM', initialize=initialize_variables, ivar=ivar, index = ir_hard_level_prev_co )
+    end if
 
     call this%set_restart_var(vname='fates_canopy_layer', vtype=cohort_int, &
          long_name='ed cohort - canopy_layer', units='unitless', flushval = flushinvalid, &
@@ -1614,6 +1625,8 @@ contains
            rio_canopy_layer_yesterday_co    => this%rvars(ir_canopy_layer_yesterday_co)%r81d, &
            rio_canopy_trim_co          => this%rvars(ir_canopy_trim_co)%r81d, &
            rio_seed_prod_co            => this%rvars(ir_seed_prod_co)%r81d, &
+           rio_hard_level_co            => this%rvars(ir_hard_level_co)%r81d, & !marius
+           rio_hard_level_prev_co            => this%rvars(ir_hard_level_prev_co)%r81d, & !marius
            rio_size_class_lasttimestep => this%rvars(ir_size_class_lasttimestep_co)%int1d, &
            rio_dbh_co                  => this%rvars(ir_dbh_co)%r81d, &
            rio_coage_co                => this%rvars(ir_coage_co)%r81d, &
@@ -1846,7 +1859,10 @@ contains
                         
 
                 end if
-
+                if (hlm_use_hardening .eq. itrue) then 
+                   rio_hard_level_co(io_idx_co)    = ccohort%hard_level 
+                   rio_hard_level_prev_co(io_idx_co)    = ccohort%hard_level_prev
+                endif
                 rio_canopy_layer_co(io_idx_co) = ccohort%canopy_layer
                 rio_canopy_layer_yesterday_co(io_idx_co) = ccohort%canopy_layer_yesterday
                 rio_canopy_trim_co(io_idx_co)  = ccohort%canopy_trim
@@ -2404,6 +2420,8 @@ contains
           rio_canopy_layer_yesterday_co         => this%rvars(ir_canopy_layer_yesterday_co)%r81d, &
           rio_canopy_trim_co          => this%rvars(ir_canopy_trim_co)%r81d, &
           rio_seed_prod_co            => this%rvars(ir_seed_prod_co)%r81d, &
+          rio_hard_level_co            => this%rvars(ir_hard_level_co)%r81d, & !marius
+          rio_hard_level_prev_co            => this%rvars(ir_hard_level_prev_co)%r81d, & !marius
           rio_size_class_lasttimestep => this%rvars(ir_size_class_lasttimestep_co)%int1d, &
           rio_dbh_co                  => this%rvars(ir_dbh_co)%r81d, &
           rio_coage_co                => this%rvars(ir_coage_co)%r81d, & 
@@ -2619,7 +2637,11 @@ contains
                 ccohort%resp_acc_hold = rio_resp_acc_hold_co(io_idx_co)
                 ccohort%npp_acc_hold = rio_npp_acc_hold_co(io_idx_co)
                 ccohort%resp_m_def   = rio_resp_m_def_co(io_idx_co)
-
+                
+                if (hlm_use_hardening .eq. itrue) then
+                   ccohort%hard_level   = rio_hard_level_co(io_idx_co) !marius
+                   ccohort%hard_level_prev   = rio_hard_level_prev_co(io_idx_co)
+                end if
                 ccohort%bmort        = rio_bmort_co(io_idx_co)
                 ccohort%hmort        = rio_hmort_co(io_idx_co)
                 ccohort%cmort        = rio_cmort_co(io_idx_co)
