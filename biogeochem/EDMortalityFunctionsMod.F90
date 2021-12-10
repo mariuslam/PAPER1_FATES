@@ -25,7 +25,7 @@ module EDMortalityFunctionsMod
    use PRTParametersMod           , only : prt_params !marius
    use EDParamsMod                , only : ED_val_phen_a, ED_val_phen_b, ED_val_phen_c !marius
    use EDTypesMod                 , only : leaves_on !marius
-   use FatesInterfaceTypesMod     , only : hlm_use_hardening !marius
+   use FatesInterfaceTypesMod     , only : hlm_use_hydrohard,hlm_use_frosthard !marius
    implicit none
    private
    
@@ -44,7 +44,7 @@ contains
 
 
 
-  subroutine mortality_rates( cohort_in,bc_in,cmort,hmort,bmort,frmort,smort,asmort )
+  subroutine mortality_rates( currentSite,cohort_in,bc_in,cmort,hmort,bmort,frmort,smort,asmort )
 
     ! ============================================================================
     !  Calculate mortality rates from carbon storage, hydraulic cavitation, 
@@ -54,7 +54,7 @@ contains
     use FatesConstantsMod,  only : tfrz => t_water_freeze_k_1atm
     use FatesInterfaceTypesMod        , only : hlm_hio_ignore_val   
     use FatesConstantsMod,  only : fates_check_param_set
-    
+    type (ed_site_type), intent(inout), target  :: currentSite
     type (ed_cohort_type), intent(in) :: cohort_in 
     type (bc_in_type), intent(in) :: bc_in
     real(r8),intent(out) :: bmort  ! background mortality : Fraction per year
@@ -83,6 +83,8 @@ contains
     real(r8) :: flc                ! fractional loss of conductivity 
     real(r8) :: hard_carb          ! reduced carb mortality if hardened 
     real(r8) :: hard_hydr          ! reduced hydro mortality if hardened 
+    real(r8) :: max_h !marius
+    real(r8) :: Tmin  !marius
     real(r8), parameter :: frost_mort_buffer = 5.0_r8  ! 5deg buffer for freezing mortality
     logical, parameter :: test_zero_mortality = .false. ! Developer test which
                                                         ! may help to debug carbon imbalances
@@ -140,7 +142,7 @@ if (hlm_use_ed_prescribed_phys .eq. ifalse) then
      flc = 1.0_r8-min_fmc
      if(flc >= hf_flc_threshold .and. hf_flc_threshold < 1.0_r8 )then 
        !--------------------marius
-       if (hlm_use_hardening .eq. itrue .and. cohort_in%hard_level < -3._r8) then
+       if (hlm_use_hydrohard .eq. itrue .and. cohort_in%hard_level < -3._r8) then
          hard_hydr=EDPftvarcon_inst%mort_scalar_hydrfailure(cohort_in%pft)*(cohort_in%hard_rate*0.5_r8+0.5_r8)
        else 
          hard_hydr=EDPftvarcon_inst%mort_scalar_hydrfailure(cohort_in%pft)
@@ -168,8 +170,15 @@ if (hlm_use_ed_prescribed_phys .eq. ifalse) then
        call storage_fraction_of_target(leaf_c_target, store_c, frac)
        if( frac .lt. 1._r8) then
           !------------------------ marius
-          !if (hlm_use_hardening .eq. itrue .and. cohort_in%hard_level < -3._r8) then
-          !   hard_carb=EDPftvarcon_inst%mort_scalar_cstarvation(cohort_in%pft)*(cohort_in%hard_rate*0.5_r8+0.5_r8)
+          !if (currentSite%hardtemp<-1.334_r8 .and. currentSite%hardtemp>-46.666_r8) then
+          ! max_h=currentSite%hardtemp*1.5
+          !else if (currentSite%hardtemp<=-46.666_r8) then
+          !  max_h=-70._r8
+          !else 
+          !  max_h=-2._r8
+          !end if
+          !if (hlm_use_hydrohard .eq. itrue .and. max_h < -3._r8) then
+          !   hard_carb=EDPftvarcon_inst%mort_scalar_cstarvation(cohort_in%pft)*(((max_h+70._r8)/67._r8)*0.5_r8+0.5_r8)
           !else 
           !   hard_carb=EDPftvarcon_inst%mort_scalar_cstarvation(cohort_in%pft)
           !end if
@@ -194,14 +203,17 @@ if (hlm_use_ed_prescribed_phys .eq. ifalse) then
     !           doi: 10.1111/j.1365-2486.2006.01254.x                                    
 
     ifp = cohort_in%patchptr%patchno
-    temp_in_C = bc_in%t_veg24_pa(ifp) - tfrz
-    temp_dep_fraction  = max(0.0_r8, min(1.0_r8, 1.0_r8 - (temp_in_C - &
-                         EDPftvarcon_inst%freezetol(cohort_in%pft))/frost_mort_buffer) )
-    !temp_dep_fraction  = max(0.0_r8, min(1.0_r8, 1.0_r8 - (temp_in_C - & !marius
-    !                     -50._r8)/frost_mort_buffer) )
+
+    if (hlm_use_frosthard .eq. itrue) then !marius implementation of frost 
+       Tmin=bc_in%t_ref2m_min_si-273.15_r8
+       temp_dep_fraction  = max(0.0_r8, min(1.0_r8, 1.0_r8 - (Tmin - &
+                            max(EDPftvarcon_inst%freezetol(cohort_in%pft),cohort_in%hard_level))/frost_mort_buffer) )
+    else
+       temp_in_C = bc_in%t_veg24_pa(ifp) - tfrz
+       temp_dep_fraction  = max(0.0_r8, min(1.0_r8, 1.0_r8 - (temp_in_C - &
+                            EDPftvarcon_inst%freezetol(cohort_in%pft))/frost_mort_buffer) )
+    endif
     frmort    = EDPftvarcon_inst%mort_scalar_coldstress(cohort_in%pft) * temp_dep_fraction
-
-
     !mortality_rates = bmort + hmort + cmort
 
  else ! i.e. hlm_use_ed_prescribed_phys is true 
@@ -263,7 +275,7 @@ if (hlm_use_ed_prescribed_phys .eq. ifalse) then
     
     ! Mortality for trees in the understorey. 
     !if trees are in the canopy, then their death is 'disturbance'. This probably needs a different terminology
-    call mortality_rates(currentCohort,bc_in,cmort,hmort,bmort,frmort,smort, asmort)
+    call mortality_rates(currentSite, currentCohort,bc_in,cmort,hmort,bmort,frmort,smort, asmort)
     call LoggingMortality_frac(ipft, currentCohort%dbh, currentCohort%canopy_layer, &
                                currentCohort%lmort_direct,                       &
                                currentCohort%lmort_collateral,                    &

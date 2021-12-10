@@ -62,7 +62,7 @@ module FatesPlantHydraulicsMod
   use FatesInterfaceTypesMod  , only : hlm_ipedof
   use FatesInterfaceTypesMod  , only : numpft
   use FatesInterfaceTypesMod  , only : nlevsclass
-  use FatesInterfaceTypesMod  , only : hlm_use_hardening !marius
+  use FatesInterfaceTypesMod  , only : hlm_use_hydrohard !marius
 
   use FatesAllometryMod, only    : bleaf
   use FatesAllometryMod, only    : bsap_allom
@@ -2370,15 +2370,15 @@ contains
              ft       = ccohort%pft
 
              !update hardening for each cohort in BC hydraulics loop. Marius
-             if (hlm_use_hardening .eq. itrue .and. ccohort%hard_level<-3._r8) then
-                !if (ccohort%hard_level .ne. ccohort%hard_level_prev) then
+             if (hlm_use_hydrohard .eq. itrue .and. ccohort%hard_level<-3._r8) then
+                if (ccohort%hard_level .ne. ccohort%hard_level_prev) then
                 !   !write(fates_log(),*)'check1'
-                !    do pm = 1,n_hypool_plant
-                !      pinot_hard=EDPftvarcon_inst%hydr_pinot_node(ft,pm)-(1._r8-(ccohort%hard_level+70._r8)/67._r8)*0.5_r8 ! solute pinot max change if hardening is -1
-	        !      epsil_hard=EDPftvarcon_inst%hydr_epsil_node(ft,pm)+(1._r8-(ccohort%hard_level+70._r8)/67._r8)*10._r8! pressure epsil max change if hardening is +15
-                !      call wrf_plant(pm,ft)%p%set_wrf_hard([pinot_hard,epsil_hard])
-                !   end do 
-                !end if
+                    do pm = 1,n_hypool_plant
+                      pinot_hard=EDPftvarcon_inst%hydr_pinot_node(ft,pm)-(1._r8-(ccohort%hard_level+70._r8)/67._r8)*0.5_r8 ! solute pinot max change if hardening is -1
+	              epsil_hard=EDPftvarcon_inst%hydr_epsil_node(ft,pm)+(1._r8-(ccohort%hard_level+70._r8)/67._r8)*10._r8! pressure epsil max change if hardening is +15
+                      call wrf_plant(pm,ft)%p%set_wrf_hard([pinot_hard,epsil_hard])
+                   end do 
+                end if
              end if
 
              ! Relative transpiration of this cohort from the whole patch
@@ -5184,7 +5184,7 @@ contains
     integer :: istem ! stem index
     integer :: k     ! rhizosphere/root index (per level)
     integer :: j     ! soil layer index
-    k_factor=11._r8 !marius
+    k_factor=9._r8 !marius
     kmax_dn(:) = fates_unset_r8
     kmax_up(:) = fates_unset_r8
 
@@ -5196,7 +5196,7 @@ contains
     kmax_dn(icnx) = cohort_hydr%kmax_petiole_to_leaf
     kmax_up(icnx) = cohort_hydr%kmax_stem_upper(1)
     !-----------------------------------------------------------!marius
-    if (hlm_use_hardening .eq. itrue) then
+    if (hlm_use_hydrohard .eq. itrue) then
       if (hard_level<-3_r8) then
         hard_rate_temporary=((hard_level+3._r8)/k_factor)
         kmax_dn(icnx)=kmax_dn(icnx)*10**hard_rate_temporary 
@@ -5210,7 +5210,7 @@ contains
        kmax_dn(icnx) = cohort_hydr%kmax_stem_lower(istem)
        kmax_up(icnx) = cohort_hydr%kmax_stem_upper(istem+1)
        !-----------------------------------------------------------!marius
-       if (hlm_use_hardening .eq. itrue) then
+       if (hlm_use_hydrohard .eq. itrue) then
          if (hard_level<-3_r8) then
            kmax_dn(icnx)=kmax_dn(icnx)*10**hard_rate_temporary 
            kmax_up(icnx)=kmax_up(icnx)*10**hard_rate_temporary 
@@ -5223,7 +5223,7 @@ contains
     kmax_dn(icnx) = cohort_hydr%kmax_stem_lower(n_hypool_stem)
     kmax_up(icnx) = cohort_hydr%kmax_troot_upper
     !-----------------------------------------------------------!marius
-    if (hlm_use_hardening .eq. itrue) then
+    if (hlm_use_hydrohard .eq. itrue) then
       if (hard_level<-3_r8) then
         kmax_dn(icnx)=kmax_dn(icnx)*10**hard_rate_temporary 
         kmax_up(icnx)=kmax_up(icnx)*10**hard_rate_temporary 
@@ -5243,7 +5243,7 @@ contains
              kmax_dn(icnx) = cohort_hydr%kmax_troot_lower(j) 
              kmax_up(icnx) = cohort_hydr%kmax_aroot_upper(j)
             !-----------------------------------------------------------!marius
-             if (hlm_use_hardening .eq. itrue) then
+             if (hlm_use_hydrohard .eq. itrue) then
                 if (hard_level<-3_r8) then
                   kmax_dn(icnx)=kmax_dn(icnx)*10**hard_rate_temporary 
                   kmax_up(icnx)=kmax_up(icnx)*10**hard_rate_temporary 
@@ -5262,7 +5262,7 @@ contains
              end if
              kmax_up(icnx) = site_hydr%kmax_upper_shell(j,1)*aroot_frac_plant
              !-----------------------------------------------!marius
-             if (hlm_use_hardening .eq. itrue) then
+             if (hlm_use_hydrohard .eq. itrue) then
                 if (hard_level<-3_r8) then
                   kmax_dn(icnx)=kmax_dn(icnx)*10**hard_rate_temporary 
                 end if

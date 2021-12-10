@@ -21,6 +21,7 @@ import getopt
 import code  # For development: code.interact(local=dict(globals(), **locals()))
 import time
 import imp
+import csv
 import ctypes
 from ctypes import *
 from operator import add
@@ -235,13 +236,15 @@ def main(argv):
 
     names=['Soil','ARoot','Stem','Leaf'] #ref
 
-    theta_sat = [0.55,0.65,0.65,0.75] #ref
-    theta_sat = [0.60,0.75,0.65,0.65]
+    theta_sat = [0.7,0.65,0.65,0.75] #ref
+    theta_sat = [0.7,0.75,0.65,0.65]
     
-    theta_res = [0.15,0.16,0.21,0.11] #ref
-    theta_res = [0.15,0.11,0.21,0.16] 
+    theta_res = [0.0,0.16,0.21,0.11] #ref
+    theta_res = [0.0,0.11,0.21,0.16] 
     pi=-0.7
-    ep=100
+    ep=10
+    pi=0
+    ep=0
     # Absorbing root
     tfs_wrf(2,th_sat=theta_sat[1],th_res=theta_res[1],pinot=-1.043478+pi, \
             epsil=8+ep,rwc_fd=rwc_fd[3],cap_corr=cap_corr[3], \
@@ -279,17 +282,28 @@ def main(argv):
 
 
     # Theta vs psi plots
+    f = open('csv_ref.csv','w')
+    writer = csv.writer(f)
+    writer.writerow([names[0]+'theta',names[0]+'psi',names[1]+'theta',names[1]+'psi',names[2]+'theta',names[2]+'psi',names[3]+'theta',names[3]+'psi'])
+    for ic in range(1000):
+        writer.writerow([theta[0,ic],psi[0,ic],theta[1,ic],psi[1,ic],theta[2,ic],psi[2,ic],theta[3,ic],psi[3,ic]])
+    f.close()
+
 
     fig0, ax1 = plt.subplots(1,1,figsize=(9,6))
     for ic in range(ncomp):
         ax1.plot(theta[ic,:],psi[ic,:],label='{}'.format(names[ic]))
 
-    ax1.set_ylim((-15,2))
+
+    ax1.set_ylim((-35,2))
     ax1.set_ylabel('Psi [MPa]')
     ax1.set_xlabel('VWC [m3/m3]')
     ax1.legend(loc='lower right')
     plt.savefig('pv_sensitivity/0_soil.png',dpi=200,bbox_inches='tight')
-    
+
+
+
+
     for ic in range(ncomp):
         for i in range(npts):
             dpsidth[ic,i]  = dpsidth_from_th(ci(ic+1),c8(theta[ic,i]))
@@ -373,7 +387,7 @@ def main(argv):
     ax1.set_ylim([0,2])
 #    ax1.set_ylim([0,10])
     ax1.legend(loc='upper right')
-    plt.show()
+    #plt.show()
 
 
 
