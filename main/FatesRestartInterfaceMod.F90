@@ -88,7 +88,6 @@ module FatesRestartInterfaceMod
   integer :: ir_dleafoffdate_si
   integer :: ir_acc_ni_si
   integer :: ir_gdd_si
-  integer :: ir_gdd5_si !marius
   integer :: ir_trunk_product_si
   integer :: ir_ncohort_pa
   integer :: ir_canopy_layer_co
@@ -626,10 +625,6 @@ contains
     call this%set_restart_var(vname='fates_gdd_site', vtype=site_r8, &
          long_name='growing degree days at each site', units='degC days', flushval = flushzero, &
          hlms='CLM:ALM', initialize=initialize_variables, ivar=ivar, index = ir_gdd_si )
-    !marius
-    call this%set_restart_var(vname='fates_gdd5_site', vtype=site_r8, & 
-         long_name='growing degree days at each site', units='degC days', flushval = flushzero, &
-         hlms='CLM:ALM', initialize=initialize_variables, ivar=ivar, index = ir_gdd5_si )
 
     call this%set_restart_var(vname='fates_trunk_product_site', vtype=site_r8, &
          long_name='Accumulate trunk product flux at site', &
@@ -1617,7 +1612,6 @@ contains
            rio_dleafoffdate_si         => this%rvars(ir_dleafoffdate_si)%int1d, &
            rio_acc_ni_si               => this%rvars(ir_acc_ni_si)%r81d, &
            rio_gdd_si                  => this%rvars(ir_gdd_si)%r81d, &
-           rio_gdd5_si                  => this%rvars(ir_gdd5_si)%r81d, & !marius
            rio_trunk_product_si        => this%rvars(ir_trunk_product_si)%r81d, &
            rio_ncohort_pa              => this%rvars(ir_ncohort_pa)%int1d, &
            rio_solar_zenith_flag_pa    => this%rvars(ir_solar_zenith_flag_pa)%int1d, &
@@ -2075,7 +2069,6 @@ contains
           rio_dleafoffdate_si(io_idx_si) = sites(s)%dleafoffdate
           rio_acc_ni_si(io_idx_si)       = sites(s)%acc_NI
           rio_gdd_si(io_idx_si)          = sites(s)%grow_deg_days
-          rio_gdd5_si(io_idx_si)          = sites(s)%gdd5  !marius
           
           ! Accumulated trunk product
           rio_trunk_product_si(io_idx_si) = sites(s)%resources_management%trunk_product_site
@@ -2412,7 +2405,6 @@ contains
           rio_dleafoffdate_si         => this%rvars(ir_dleafoffdate_si)%int1d, &
           rio_acc_ni_si               => this%rvars(ir_acc_ni_si)%r81d, &
           rio_gdd_si                  => this%rvars(ir_gdd_si)%r81d, &
-          rio_gdd5_si                  => this%rvars(ir_gdd5_si)%r81d, & !marius
           rio_trunk_product_si        => this%rvars(ir_trunk_product_si)%r81d, &
           rio_ncohort_pa              => this%rvars(ir_ncohort_pa)%int1d, &
           rio_solar_zenith_flag_pa    => this%rvars(ir_solar_zenith_flag_pa)%int1d, &
@@ -2899,7 +2891,6 @@ contains
           sites(s)%dleafoffdate   = rio_dleafoffdate_si(io_idx_si)
           sites(s)%acc_NI         = rio_acc_ni_si(io_idx_si)
           sites(s)%grow_deg_days  = rio_gdd_si(io_idx_si)
-          sites(s)%gdd5  = rio_gdd5_si(io_idx_si) !marius
 
           sites(s)%resources_management%trunk_product_site = rio_trunk_product_si(io_idx_si)
 

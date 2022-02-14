@@ -23,9 +23,11 @@ module EDMortalityFunctionsMod
    use PRTGenericMod              , only : store_organ
    use FatesInterfaceTypesMod     , only : hlm_model_day !marius
    use PRTParametersMod           , only : prt_params !marius
-   use EDParamsMod                , only : ED_val_phen_a, ED_val_phen_b, ED_val_phen_c !marius
    use EDTypesMod                 , only : leaves_on !marius
    use FatesInterfaceTypesMod     , only : hlm_use_hydrohard,hlm_use_frosthard !marius
+   use FatesInterfaceTypesMod     , only : hlm_current_year
+   use FatesInterfaceTypesMod     , only : hlm_current_month
+   use FatesInterfaceTypesMod     , only : hlm_current_day
    implicit none
    private
    
@@ -84,6 +86,7 @@ contains
     real(r8) :: hard_carb          ! reduced carb mortality if hardened 
     real(r8) :: hard_hydr          ! reduced hydro mortality if hardened 
     real(r8) :: max_h !marius
+    real(r8), parameter :: min_h = -2.0_r8 !marius
     real(r8) :: Tmin  !marius
     real(r8), parameter :: frost_mort_buffer = 5.0_r8  ! 5deg buffer for freezing mortality
     logical, parameter :: test_zero_mortality = .false. ! Developer test which
@@ -142,8 +145,9 @@ if (hlm_use_ed_prescribed_phys .eq. ifalse) then
      flc = 1.0_r8-min_fmc
      if(flc >= hf_flc_threshold .and. hf_flc_threshold < 1.0_r8 )then 
        !--------------------marius
-       if (hlm_use_hydrohard .eq. itrue .and. cohort_in%hard_level < -3._r8) then
-         hard_hydr=EDPftvarcon_inst%mort_scalar_hydrfailure(cohort_in%pft)*(cohort_in%hard_rate*0.5_r8+0.5_r8)
+       if (hlm_use_hydrohard .eq. itrue .and. currentSite%hard_level2(cohort_in%pft) < -3._r8) then  
+         max_h=min(max(EDPftvarcon_inst%freezetol(cohort_in%pft),max(currentSite%hardtemp,-60._r8)-10._r8),min_h)
+         hard_hydr=EDPftvarcon_inst%mort_scalar_hydrfailure(cohort_in%pft)*( ((currentSite%hard_level2(cohort_in%pft)-max_h)/(min_h-max_h) )  *0.5_r8+0.5_r8)
        else 
          hard_hydr=EDPftvarcon_inst%mort_scalar_hydrfailure(cohort_in%pft)
        end if
@@ -205,15 +209,19 @@ if (hlm_use_ed_prescribed_phys .eq. ifalse) then
     ifp = cohort_in%patchptr%patchno
 
     if (hlm_use_frosthard .eq. itrue) then !marius implementation of frost 
-       Tmin=bc_in%t_ref2m_min_si-273.15_r8
-       temp_dep_fraction  = max(0.0_r8, min(1.0_r8, 1.0_r8 - (Tmin - &
-                            max(EDPftvarcon_inst%freezetol(cohort_in%pft),cohort_in%hard_level))/frost_mort_buffer) )
+       Tmin=bc_in%tmin24_si-273.15_r8
+       temp_dep_fraction  = max(0.0_r8, min(1.0_r8,(-Tmin + currentSite%hard_level2(cohort_in%pft))/frost_mort_buffer) )
+       if (nint(hlm_model_day)<185) then
+          temp_dep_fraction=0._r8
+       endif
+       frmort    = EDPftvarcon_inst%mort_scalar_coldstress(cohort_in%pft)*temp_dep_fraction
     else
        temp_in_C = bc_in%t_veg24_pa(ifp) - tfrz
        temp_dep_fraction  = max(0.0_r8, min(1.0_r8, 1.0_r8 - (temp_in_C - &
                             EDPftvarcon_inst%freezetol(cohort_in%pft))/frost_mort_buffer) )
+       frmort    = EDPftvarcon_inst%mort_scalar_coldstress(cohort_in%pft) * temp_dep_fraction
     endif
-    frmort    = EDPftvarcon_inst%mort_scalar_coldstress(cohort_in%pft) * temp_dep_fraction
+    
     !mortality_rates = bmort + hmort + cmort
 
  else ! i.e. hlm_use_ed_prescribed_phys is true 
@@ -337,54 +345,31 @@ if (hlm_use_ed_prescribed_phys .eq. ifalse) then
     ! !LOCAL VARIABLES:
     real(r8) :: Tmean ! daily average temperature °C
     real(r8) :: Tmin
-    !real(r8) :: Tmean5yr
-    !real(r8) :: Tmin1yrinst
     real(r8) :: max_h !maximum hardiness level
     real(r8) :: max_h_dehard !maximum hardiness level for dehardening function
     real(r8), parameter :: min_h = -2.0_r8  	! Minimum hardiness level from Bigras for Picea abies (°C)
-    real(r8), parameter :: LT50 = 20.0_r8  	! Lethal temperature difference between the hardiness level and the minimum temperature” 
-                                        ! at which 50% of the trees are damaged (°C)
-                                        ! and determines the inflection-point of the curve, depending on the Dday
-    real(r8), parameter :: b = 0.2_r8      ! Slope parameter
-    real(r8) :: temp_hard_rate         	! temporary value to link hardiness and kmax change 
     real(r8) :: target_h         	! Target hardiness 
     real(r8) :: rate_h         		! Hardening rate     
     real(r8) :: rate_dh        		! Dehardening rate
     real(r8) :: hard_level_prev         ! Temporary variable for the previous time-step hardiness level
-    real(r8) :: hard_diff            	! Daily difference between Hday and Tmin (°C)
-    real(r8) :: gdd_threshold           ! GDD accumulation function,
+    real(r8) :: dayl_thresh            
     integer  :: ipft                    ! pft index
 
-    Tmean=bc_in%t_ref2m_24_si-273.15_r8
-    Tmin=bc_in%t_ref2m_min_si-273.15_r8
-    !Tmean5yr=bc_in%t_mean_5yr_si-273.15_r8
-    !Tmin1yrinst=bc_in%t_min_yr_inst_si-273.15_r8
+    Tmean=bc_in%temp24_si-273.15_r8
+    if (Tmean<-200.0_r8) then
+       Tmean=0.0_r8
+    endif
+    Tmin=bc_in%tmin24_si-273.15_r8
 
-    if (currentSite%hardtemp<-1.334_r8 .and. currentSite%hardtemp>-46.666_r8) then
-      max_h=currentSite%hardtemp*1.5
-    else if (currentSite%hardtemp<=-46.666_r8) then
-    !if (currentSite%hardtemp<-1.6_r8 .and. currentSite%hardtemp>-56._r8) then
-    !  max_h=currentSite%hardtemp*1.25_r8
-    !else if (currentSite%hardtemp<=-56._r8) then
-    !if (currentSite%hardtemp<-1._r8 .and. currentSite%hardtemp>-35._r8) then
-    !  max_h=currentSite%hardtemp*2_r8
-    !else if (currentSite%hardtemp<=-35._r8) then
-      max_h=-70._r8
-    else 
-      max_h=min_h
-    end if
-
-    !if (nint(hlm_model_day)>=366 .and. Tmean5yr<-1.667_r8 .and. Tmean5yr>-58.333_r8) then
-    !  max_h=Tmean5yr*1.2
-
+    max_h=min(max(EDPftvarcon_inst%freezetol(cohort_in%pft),max(currentSite%hardtemp,-60._r8)-10._r8),min_h)
 
     !Calculation of the target hardiness
-    if (Tmean <= max_h/2) then !
+    if (Tmean <= max_h/1.5_r8) then !
        target_h=max_h
-    else if (Tmean>= 10.0_r8) then
+    else if (Tmean>= (6.0_r8-max_h/6._r8)) then
        target_h=min_h
     else
-       target_h = -sin((3.14159_r8*(0.5_r8+(Tmean-max_h/2._r8)/(-max_h/2._r8+10._r8))))*(min_h-max_h)/2._r8-(min_h-max_h)/2._r8+min_h
+       target_h = -sin((3.14159_r8*(0.5_r8+(Tmean-max_h/1.5_r8)/(-max_h/1.5_r8+(6.0_r8-max_h/6._r8)))))*(min_h-max_h)/2._r8-(min_h-max_h)/2._r8+min_h
     end if
     !Calculation of the hardening rate
     if (Tmean <= max_h/2) then
@@ -403,47 +388,46 @@ if (hlm_use_ed_prescribed_phys .eq. ifalse) then
     if (Tmean <= 2.5_r8) then
        rate_dh=0.0_r8
     else if (Tmean >= 12.5_r8) then
-       rate_dh=5._r8*(max_h_dehard-min_h)/-31.11_r8
+       rate_dh=5.0_r8*(max_h_dehard-min_h)/-31.11_r8
     else
        rate_dh=(Tmean-2.5_r8)*((max_h_dehard-min_h)/-62.22_r8)
     end if
- 
+    !write(fates_log(),*) 'inside scheme',target_h,rate_dh,rate_h
+
+    dayl_thresh= 42000.0_r8 + ( (-30.0_r8 - max(-60.0_r8,min(0.0_r8,currentSite%hardtemp)) )/15.0_r8) * 4500.0_r8
     !================================================    
     !Hardening calculation
     cohort_in%hard_level_prev = cohort_in%hard_level
-    gdd_threshold = ED_val_phen_a + ED_val_phen_b*exp(ED_val_phen_c*real(currentSite%nchilldays,r8))
-    !if (currentSite%grow_deg_days > gdd_threshold)  then
-    !   cohort_in%hard_level = min_h
-    !else ! if (bc_in%dayl_si >= bc_in%prev_dayl_si .or. (bc_in%dayl_si < bc_in%prev_dayl_si .and. bc_in%dayl_si > 63840._r8) ) then
-       if (cohort_in%hard_level_prev + rate_dh > min_h) then
-          cohort_in%hard_level = min_h
-       else if (cohort_in%hard_level_prev >= target_h) then
-          cohort_in%hard_level = cohort_in%hard_level_prev - rate_h
-       else if (cohort_in%hard_level_prev <= target_h) then
-          cohort_in%hard_level = cohort_in%hard_level_prev + rate_dh
-       end if
-    !end if
-    if (bc_in%dayl_si <= 42000.0_r8 .and. bc_in%dayl_si < bc_in%prev_dayl_si) then ! prev: 46260._r8
+
+    if (cohort_in%hard_level_prev + rate_dh > min_h) then
+       cohort_in%hard_level = min_h
+    else if (cohort_in%hard_level_prev >= target_h) then
        cohort_in%hard_level = cohort_in%hard_level_prev - rate_h
+    else if (cohort_in%hard_level_prev < target_h) then
+       cohort_in%hard_level = cohort_in%hard_level_prev + rate_dh
     end if
+
+    if (bc_in%dayl_si <= dayl_thresh .and. bc_in%dayl_si < bc_in%prev_dayl_si) then ! prev: 46260._r8
+       if (cohort_in%hard_level_prev >= target_h) then
+       cohort_in%hard_level = cohort_in%hard_level_prev - rate_h
+       else 
+          cohort_in%hard_level = cohort_in%hard_level_prev ! now dehardening is not possible in autumn but the hardiness level is also allowed to remain steady
+       end if
+    else if (bc_in%dayl_si > dayl_thresh .and. bc_in%dayl_si < bc_in%prev_dayl_si) then
+          cohort_in%hard_level = min_h
+    end if  
     ipft = cohort_in%pft
-    !if (prt_params%season_decid(ipft) == itrue .and. cohort_in%status_coh == leaves_on .and. &
-    !    (nint(hlm_model_day) >= currentSite%cleafondate .or. nint(hlm_model_day) >= currentSite%dleafondate)) then         
-    !   cohort_in%hard_level = min_h
-    !end if
+    if (prt_params%season_decid(ipft) == itrue .and. cohort_in%status_coh == leaves_on .and. &
+        (nint(hlm_model_day) >= currentSite%cleafondate .or. nint(hlm_model_day) >= currentSite%dleafondate)) then         
+       cohort_in%hard_level = min_h
+    end if
     if (cohort_in%hard_level > min_h) then
        cohort_in%hard_level = min_h
     end if
     if (cohort_in%hard_level < max_h) then
        cohort_in%hard_level = max_h
     end if 
-    cohort_in%hard_rate=(cohort_in%hard_level-max_h)/(min_h-max_h)
 
-    hard_diff=cohort_in%hard_level_prev-Tmin
-    !Calculation of the growth reducing factor
-    cohort_in%hard_GRF=(1.0_r8/(1.0_r8+exp(b*(hard_diff-LT50))))
-    !write(fates_log(),*) "check1:",hlm_day_of_year,bc_in%dayl_si,bc_in%prev_dayl_si
-    !write(fates_log(),*) "check2:",cohort_in%hard_level
     return
 
   end subroutine Hardening_scheme

@@ -1007,6 +1007,7 @@ contains
           (nint(hlm_model_day) >= cleafondate .or. nint(hlm_model_day) >= dleafondate)) then         
         else
           stomatal_intercept(ft) = stomatal_intercept(ft)*(((hard_level+70._r8)/67._r8)*0.5+0.5)
+          medlyn_slope(ft)=medlyn_slope(ft)*(((hard_level+70._r8)/67._r8)*0.5+0.5)
         end if
       end if
                                  

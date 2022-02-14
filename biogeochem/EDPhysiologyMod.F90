@@ -1085,6 +1085,8 @@ contains
     real(r8) :: store_c                ! storage carbon [kg]
     real(r8) :: store_c_transfer_frac  ! Fraction of storage carbon used to flush leaves
     real(r8) :: totalmemory            ! total memory of carbon [kg]
+    real(r8) :: max_h !marius
+    real(r8) :: min_h !marius
     integer  :: ipft
     real(r8), parameter :: leaf_drop_fraction = 1.0_r8
     real(r8), parameter :: carbon_store_buffer = 0.10_r8
@@ -1113,9 +1115,11 @@ contains
           ! COLD LEAF ON
           ! The site level flags signify that it is no-longer too cold
           ! for leaves. Time to signal flushing
-
+          
           if (prt_params%season_decid(ipft) == itrue)then
-             if ( currentSite%cstatus == phen_cstat_notcold  )then                ! we have just moved to leaves being on . 
+             if ( currentSite%cstatus == phen_cstat_notcold  )then                ! we have just moved to leaves being on .
+              max_h=min(max(EDPftvarcon_inst%freezetol(currentCohort%pft),max(currentSite%hardtemp,-55._r8)-15._r8),-2._r8)
+              if ( currentSite%hard_level2(ipft) > max_h/2._r8)then ! we have just moved to leaves being on . marius
                 if (currentCohort%status_coh == leaves_off)then ! Are the leaves currently off?        
                    currentCohort%status_coh = leaves_on         ! Leaves are on, so change status to 
                                                                 ! stop flow of carbon out of bstore. 
@@ -1171,6 +1175,7 @@ contains
                   
                   endif		   
                 endif !pft phenology
+              endif !marius
              endif ! growing season 
 
              !COLD LEAF OFF
@@ -1220,7 +1225,7 @@ contains
           ! Site level flag indicates it is no longer in drought condition
           ! deciduous plants can flush
 
-          if (prt_params%stress_decid(ipft) == itrue )then
+          if (prt_params%stress_decid(ipft) == itrue)then
              
             if (currentSite%dstatus == phen_dstat_moiston .or. &
                  currentSite%dstatus == phen_dstat_timeon )then 
