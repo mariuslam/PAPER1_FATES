@@ -21,7 +21,6 @@ import getopt
 import code  # For development: code.interact(local=dict(globals(), **locals()))
 import time
 import imp
-import csv
 import ctypes
 from ctypes import *
 from operator import add
@@ -224,86 +223,117 @@ def main(argv):
 #    vg_wrf(1,alpha=1.0,psd=2.7,th_sat=0.55,th_res=0.1)
 #    vg_wkf(1,alpha=1.0,psd=2.7,th_sat=0.55,th_res=0.1,tort=0.5)
 
-    #cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=2)
-    #cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=4)
-    cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=6)
-    #cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=8)
-
-    cch_wkf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=6)
 
 #    cch_wrf(3,th_sat=0.55, psi_sat=-1.56e-3, beta=6)
 #    tfs_wkf(3,p50=-2.25, avuln=2.0)
 
     names=['Soil','ARoot','Stem','Leaf'] #ref
+    names=['Soil','Absorbing root - Control','Absorbing root - Fully hardened','Stem - Control','Stem - Fully hardened','Leaf - Control','Leaf - Fully hardened'] #ref
 
-    theta_sat = [0.7,0.65,0.65,0.75] #ref
-    theta_sat = [0.7,0.75,0.65,0.65]
-    
-    theta_res = [0.0,0.16,0.21,0.11] #ref
+    theta_sat = [0.55,0.65,0.65,0.75] #ref
+    theta_sat = [0.70,0.75,0.65,0.65]
+    theta_res = [0.15,0.16,0.21,0.11] #ref
     theta_res = [0.0,0.11,0.21,0.16] 
-    pi=-0.7
+    pi=-0.5
     ep=10
-    pi=0
-    ep=0
+
+    cch_wrf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=6)
+    cch_wkf(1,th_sat=0.7, psi_sat=-1.56e-3, beta=6)
+
+    # Theta vs psi plots
+    plt.rcParams.update({'font.size': 24})
+    mpl.rcParams['lines.linewidth'] = 3
+
+    color1 = (105./255.,132./255.,38./255.) #green
+    color2 = (112./255.,48./255.,160./255.) #purple
+    color3 = (255./255.,153./255.,51./255.) #orange
+    color4 = (215./255.,81./255.,210./255.) #light purple
+    color5 = (81./255.,148./255.,245./255.) #light purple
+    color6 = (32./255.,22./255.,176./255.) #blue dark
+    color7= (0./255.,206./255.,209./255.) #blue
+    color8= (127./255.,96./255.,0./255.) #brun
+    color9= (124./255.,179./255.,174./255.) #blue poster
+
+    fig0, ax1 = plt.subplots(1,1,figsize=(20,15))
+
+#---------------------first wave
     # Absorbing root
-    tfs_wrf(2,th_sat=theta_sat[1],th_res=theta_res[1],pinot=-1.043478+pi, \
-            epsil=8+ep,rwc_fd=rwc_fd[3],cap_corr=cap_corr[3], \
+    tfs_wrf(2,th_sat=theta_sat[1],th_res=theta_res[1],pinot=-1.043478, \
+            epsil=8,rwc_fd=rwc_fd[3],cap_corr=cap_corr[3], \
             cap_int=cap_int[3],cap_slp=cap_slp[3],pmedia=4,hard_rate=hard_rate[0]) # mar
     tfs_wkf(2,p50=-2.25, avuln=2.0)
 
-    #Stem
-    tfs_wrf(3,th_sat=theta_sat[2],th_res=theta_res[2],pinot=-1.22807+pi, \
-            epsil=10+ep,rwc_fd=rwc_fd[2],cap_corr=cap_corr[2], \
-           cap_int=cap_int[2],cap_slp=cap_slp[2],pmedia=2,hard_rate=hard_rate[0]) # mar
+    # Stem
+    tfs_wrf(3,th_sat=theta_sat[2],th_res=theta_res[2],pinot=-1.22807, \
+            epsil=10,rwc_fd=rwc_fd[2],cap_corr=cap_corr[2], \
+            cap_int=cap_int[2],cap_slp=cap_slp[2],pmedia=2,hard_rate=hard_rate[0]) # mar
     tfs_wkf(3,p50=-2.25, avuln=4.0)
     
     # Leaf
 
-    tfs_wrf(4,th_sat=theta_sat[3],th_res=theta_res[3],pinot=-1.465984+pi, \
-           epsil=12+ep,rwc_fd=rwc_fd[0],cap_corr=cap_corr[0], \
+    tfs_wrf(4,th_sat=theta_sat[3],th_res=theta_res[3],pinot=-1.465984, \
+            epsil=12,rwc_fd=rwc_fd[0],cap_corr=cap_corr[0], \
             cap_int=cap_int[0],cap_slp=cap_slp[0],pmedia=1,hard_rate=hard_rate[0]) # mar
     tfs_wkf(4,p50=-2.25, avuln=2.0)
-
-    print('initialized WRF')
-
-#    theta = np.linspace(0.10, 0.7, num=npts)
 
     theta = np.full(shape=(ncomp,npts),dtype=np.float64,fill_value=np.nan)
     psi   = np.full(shape=(ncomp,npts),dtype=np.float64,fill_value=np.nan)
     dpsidth = np.full(shape=(ncomp,npts),dtype=np.float64,fill_value=np.nan)
     cdpsidth = np.full(shape=(ncomp,npts),dtype=np.float64,fill_value=np.nan)
 
+    for ic in range(ncomp):
+        theta[ic,:] = np.linspace(theta_res[ic], 1.2*theta_sat[ic], num=npts)
+        for i in range(npts):
+            psi[ic,i] = psi_from_th(ci(ic+1),c8(theta[ic,i]))
 
+    ax1.plot(theta[0,:],psi[0,:],'--',label='Soil',color=color3)
+    ax1.plot(theta[1,:],psi[1,:],'--',label='Control - Absorbing root',color=color1)
+    ax1.plot(theta[2,:],psi[2,:],'--',label='Control - Stem',color=color2)
+    ax1.plot(theta[3,:],psi[3,:],'--',label='Control - Leaf',color=color7)
+
+#-------------------second wave
+
+    # Absorbing root
+    tfs_wrf(2,th_sat=theta_sat[1],th_res=theta_res[1],pinot=-1.043478+pi, \
+            epsil=8+ep,rwc_fd=rwc_fd[3],cap_corr=cap_corr[3], \
+            cap_int=cap_int[3],cap_slp=cap_slp[3],pmedia=4,hard_rate=hard_rate[0]) # mar
+    tfs_wkf(2,p50=-2.25, avuln=2.0)
+    # Stem
+    tfs_wrf(3,th_sat=theta_sat[2],th_res=theta_res[2],pinot=-1.22807+pi, \
+            epsil=10+ep,rwc_fd=rwc_fd[2],cap_corr=cap_corr[2], \
+            cap_int=cap_int[2],cap_slp=cap_slp[2],pmedia=2,hard_rate=hard_rate[0]) # mar
+    tfs_wkf(3,p50=-2.25, avuln=4.0)
+    
+    # Leaf
+
+    tfs_wrf(4,th_sat=theta_sat[3],th_res=theta_res[3],pinot=-1.465984+pi, \
+            epsil=12+ep,rwc_fd=rwc_fd[0],cap_corr=cap_corr[0], \
+            cap_int=cap_int[0],cap_slp=cap_slp[0],pmedia=1,hard_rate=hard_rate[0]) # mar
+    tfs_wkf(4,p50=-2.25, avuln=2.0)
+
+    theta = np.full(shape=(ncomp,npts),dtype=np.float64,fill_value=np.nan)
+    psi   = np.full(shape=(ncomp,npts),dtype=np.float64,fill_value=np.nan)
+    dpsidth = np.full(shape=(ncomp,npts),dtype=np.float64,fill_value=np.nan)
+    cdpsidth = np.full(shape=(ncomp,npts),dtype=np.float64,fill_value=np.nan)
 
     for ic in range(ncomp):
         theta[ic,:] = np.linspace(theta_res[ic], 1.2*theta_sat[ic], num=npts)
         for i in range(npts):
             psi[ic,i] = psi_from_th(ci(ic+1),c8(theta[ic,i]))
 
+#------------------end second wave
 
-    # Theta vs psi plots
-    f = open('csv_ref.csv','w')
-    writer = csv.writer(f)
-    writer.writerow([names[0]+'theta',names[0]+'psi',names[1]+'theta',names[1]+'psi',names[2]+'theta',names[2]+'psi',names[3]+'theta',names[3]+'psi'])
-    for ic in range(1000):
-        writer.writerow([theta[0,ic],psi[0,ic],theta[1,ic],psi[1,ic],theta[2,ic],psi[2,ic],theta[3,ic],psi[3,ic]])
-    f.close()
+    ax1.plot(theta[1,:],psi[1,:],label='Fully hardened - Absorbing root',color=color1)
+    ax1.plot(theta[2,:],psi[2,:],label='Fully hardened - Stem',color=color2)
+    ax1.plot(theta[3,:],psi[3,:],label='Fully hardened - Leaf',color=color7)
 
-
-    fig0, ax1 = plt.subplots(1,1,figsize=(9,6))
-    for ic in range(ncomp):
-        ax1.plot(theta[ic,:],psi[ic,:],label='{}'.format(names[ic]))
-
-
-    ax1.set_ylim((-35,2))
-    ax1.set_ylabel('Psi [MPa]')
-    ax1.set_xlabel('VWC [m3/m3]')
+    ax1.set_ylim((-25,1))
+    ax1.set_xlim((0.1,0.8))
+    ax1.set_ylabel('Water potential [MPa]')
+    ax1.set_xlabel('Volumetric water content [m3/m3]')
     ax1.legend(loc='lower right')
-    plt.savefig('pv_sensitivity/0_soil.png',dpi=200,bbox_inches='tight')
-
-
-
-
+    plt.savefig('pv_sensitivity/0_theta_psi.png',dpi=200,bbox_inches='tight')
+    
     for ic in range(ncomp):
         for i in range(npts):
             dpsidth[ic,i]  = dpsidth_from_th(ci(ic+1),c8(theta[ic,i]))

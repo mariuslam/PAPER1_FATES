@@ -2595,7 +2595,7 @@ contains
           write(fates_log(),*) 'integrated root flux: ',root_flux,' [kg/m2]'
           write(fates_log(),*) 'transpiration flux: ',transp_flux,' [kg/m2]'
           write(fates_log(),*) 'end storage: ',site_hydr%h2oveg
-          call endrun(msg=errMsg(sourcefile, __LINE__))
+          !call endrun(msg=errMsg(sourcefile, __LINE__))
       end if
       
        if(abs(delta_soil_storage + root_flux + site_runoff) > 1.e-3_r8 ) then
@@ -4518,7 +4518,7 @@ contains
 
 
     ! Maximum number of Newton iterations in each round
-    integer, parameter :: max_newton_iter = 10000 !marius
+    integer, parameter :: max_newton_iter = 100 !marius
 
     ! Flag definitions for convergence flag (icnv)
     ! icnv = 1 fail the round due to either wacky math, or
